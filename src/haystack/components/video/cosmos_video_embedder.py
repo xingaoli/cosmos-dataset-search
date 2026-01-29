@@ -38,28 +38,82 @@ class CosmosEmbedClient:
     
     def embed_videos(self, video_inputs: List[str]) -> List[List[float]]:
         """Embed videos using cosmos-embed service with base64 data."""
+        logger.info(f"=== CosmosEmbedClient.embed_videos called with {len(video_inputs)} videos ===")
         if not video_inputs:
             return []
-            
+
         if len(video_inputs) > 64:
             raise ValueError("cosmos-embed supports maximum 64 videos per request")
 
         # Determine request type based on content
         has_base64 = any(";base64," in vi for vi in video_inputs)
         has_presigned = any(";presigned_url," in vi for vi in video_inputs)
-        
+
+        logger.info(f"Content type check: has_base64={has_base64}, has_presigned={has_presigned}")
+
         # Validate mixed content types
         if has_base64 and has_presigned:
             raise ValueError("Cannot mix base64 and presigned URL inputs in same request")
-        
+
         if len(video_inputs) == 1 and has_base64:
             # Single base64 video - use query mode
+            logger.info(f"Processing single base64 video")
             payload = {
                 "input": video_inputs[0],
                 "request_type": "query",
                 "encoding_format": "float",
                 "model": "nvidia/cosmos-embed1",
             }
+
+            # 计算payload大小
+            payload_size = len(str(payload)) / 1024 / 1024  # MB
+            logger.info(f"Sending single base64 request to cosmos-embed (payload size: {payload_size:.2f} MB)")
+
+            try:
+                response = requests.post(
+                    self.embeddings_endpoint,
+                    json=payload,
+                    timeout=600,  # 600秒超时
+                    headers={'Content-Type': 'application/json'}
+                )
+
+                logger.info(f"Received response with status: {response.status_code}, content-length: {len(response.content)} bytes")
+                response.raise_for_status()
+
+                result = response.json()
+                if "error" in result:
+                    error_detail = result["error"].get("detail", "Unknown error")
+                    error_status = result["error"].get("status_code", 500)
+                    raise RuntimeError(f"Cosmos-embed error ({error_status}): {error_detail}")
+
+                logger.info(f"Successfully extracted embedding for single video")
+                return [result["data"][0]["embedding"]]
+
+            except requests.exceptions.Timeout:
+                logger.error(f"Request to cosmos-embed timed out after 600s (payload size: {payload_size:.2f} MB)")
+                raise RuntimeError("Cosmos-embed service timeout - videos may be too large or service overloaded")
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"Connection error to cosmos-embed: {str(e)}")
+                logger.error(f"Request payload size: {payload_size:.2f} MB")
+                raise RuntimeError(f"Connection to cosmos-embed failed - base64 payload ({payload_size:.2f} MB) may be too large.")
+            except requests.exceptions.HTTPError as e:
+                # Log response body for detailed error information
+                response_text = e.response.text if e.response else "No response"
+                logger.error(f"HTTP error from cosmos-embed: status={e.response.status_code if e.response else 'Unknown'}")
+                logger.error(f"Response body: {response_text[:1000]}")  # Log first 1000 chars
+                logger.error(f"Request payload size: {payload_size:.2f} MB")
+
+                if e.response.status_code == 400:
+                    logger.error("Bad request to cosmos-embed - check video format")
+                    raise ValueError(f"Invalid video format or request format: {response_text[:500]}")
+                elif e.response.status_code == 503:
+                    logger.error("Cosmos-embed service unavailable")
+                    raise RuntimeError("Cosmos-embed service temporarily unavailable")
+                else:
+                    raise RuntimeError(f"Cosmos-embed service error ({e.response.status_code if e.response else 'Unknown'}): {response_text[:500]}")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to get embeddings from cosmos-embed: {e}")
+                raise RuntimeError(f"Cosmos-embed service error: {e}")
         elif has_base64:
             # Multiple base64 videos - use individual query mode calls
             embeddings = []
@@ -73,36 +127,53 @@ class CosmosEmbedClient:
                     "model": "nvidia/cosmos-embed1",
                 }
                 try:
-                    logger.info(f"Sending request to cosmos-embed: {self.embeddings_endpoint}")
+                    # 计算请求体大小用于日志
+                    payload_size = len(str(single_payload)) / 1024 / 1024  # MB
+                    logger.info(f"Sending base64 request to cosmos-embed (payload size: {payload_size:.2f} MB)")
+
                     response = requests.post(
-                        self.embeddings_endpoint, 
-                        json=single_payload, 
-                        timeout=300,
+                        self.embeddings_endpoint,
+                        json=single_payload,
+                        timeout=600,  # 增加到600秒
                         headers={'Content-Type': 'application/json'}
                     )
+
+                    # 检查响应状态
+                    logger.info(f"Received response with status: {response.status_code}, content-length: {len(response.content)} bytes")
                     response.raise_for_status()
+
                     result = response.json()
                     if "error" in result:
                         error_detail = result["error"].get("detail", "Unknown error")
                         error_status = result["error"].get("status_code", 500)
                         raise RuntimeError(f"Cosmos-embed error ({error_status}): {error_detail}")
                     embeddings.append(result["data"][0]["embedding"])
+                    logger.info(f"Successfully extracted embedding for video")
+
                 except requests.exceptions.Timeout:
-                    logger.error("Request to cosmos-embed timed out")
+                    logger.error(f"Request to cosmos-embed timed out after 600s (payload size: {payload_size:.2f} MB)")
                     raise RuntimeError("Cosmos-embed service timeout - videos may be too large or service overloaded")
-                except requests.exceptions.ConnectionError:
-                    logger.error("Failed to connect to cosmos-embed service")
-                    raise RuntimeError("Cannot connect to cosmos-embed service - check if service is running")
+                except requests.exceptions.ConnectionError as e:
+                    # 捕获更详细的连接错误信息
+                    logger.error(f"Connection error to cosmos-embed: {str(e)}")
+                    logger.error(f"Request payload size: {payload_size:.2f} MB")
+                    logger.error(f"This may be due to large base64 payload causing connection issues")
+                    raise RuntimeError(f"Connection to cosmos-embed failed - base64 payload ({payload_size:.2f} MB) may be too large. Try using presigned URLs instead.")
                 except requests.exceptions.HTTPError as e:
+                    # Log response body for detailed error information
+                    response_text = e.response.text if e.response else "No response"
+                    logger.error(f"HTTP error from cosmos-embed: status={e.response.status_code if e.response else 'Unknown'}")
+                    logger.error(f"Response body: {response_text[:1000]}")  # Log first 1000 chars
+                    logger.error(f"Request payload size: {payload_size:.2f} MB")
+
                     if e.response.status_code == 400:
                         logger.error("Bad request to cosmos-embed - check video format")
-                        raise ValueError("Invalid video format or request format")
+                        raise ValueError(f"Invalid video format or request format: {response_text[:500]}")
                     elif e.response.status_code == 503:
                         logger.error("Cosmos-embed service unavailable")
                         raise RuntimeError("Cosmos-embed service temporarily unavailable")
                     else:
-                        logger.error(f"HTTP error from cosmos-embed: {e}")
-                        raise RuntimeError(f"Cosmos-embed service error: {e}")
+                        raise RuntimeError(f"Cosmos-embed service error ({e.response.status_code if e.response else 'Unknown'}): {response_text[:500]}")
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Failed to get embeddings from cosmos-embed: {e}")
                     raise RuntimeError(f"Cosmos-embed service error: {e}")
@@ -305,11 +376,12 @@ class CosmosVideoDocumentEmbedder(SerializerMixin, CosmosEmbedMixin):
             batch_docs = documents[batch_start:batch_end]
             batch_size = len(batch_docs)
             
-            logger.debug(f"Processing batch {batch_start//self.batch_size + 1}: documents {batch_start+1}-{batch_end}")
-            
+            logger.info(f"Processing batch {batch_start//self.batch_size + 1}: documents {batch_start+1}-{batch_end}")
+
             # Prepare inputs for this batch presigned URLs
             video_inputs: List[str] = []
-            for doc in batch_docs:
+            logger.info(f"Preparing video inputs for {len(batch_docs)} documents")
+            for i, doc in enumerate(batch_docs):
                 if isinstance(doc.content, str):
                     if doc.content.startswith("data:video/"):
                         # Already a data URI (base64 or presigned_url)
@@ -324,8 +396,10 @@ class CosmosVideoDocumentEmbedder(SerializerMixin, CosmosEmbedMixin):
                 logger.warning(f"No video inputs prepared for batch {batch_start//self.batch_size + 1}")
                 continue
 
+            logger.info(f"Calling embed_videos with {len(video_inputs)} video inputs")
             # Single API call for this batch (up to 64 videos)
             embeddings_batch = self._client.embed_videos(video_inputs)
+            logger.info(f"embed_videos returned {len(embeddings_batch)} embeddings")
             total_api_calls += 1
 
             if len(embeddings_batch) != len(batch_docs):
