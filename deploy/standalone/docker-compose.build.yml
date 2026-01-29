@@ -18,7 +18,7 @@ services:
 
   validate-env:
     image: bash
-    pull_policy: always
+    pull_policy: missing
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -26,6 +26,7 @@ services:
     entrypoint: ["/usr/local/bin/bash"]
     command: ["/workspace/scripts/validate_env.sh"]
     environment:
+      - PYTHONDONTWRITEBYTECODE=1
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - DATA_DIR=${DATA_DIR}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
@@ -36,7 +37,7 @@ services:
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-600}
       - MAX_DOCS_PER_UPLOAD=${MAX_DOCS_PER_UPLOAD:-1000}
       - COSMOS_EMBED_GPUS=${COSMOS_EMBED_GPUS:-1}
-      - NIM_TRITON_LOG_VERBOSE=${NIM_TRITON_LOG_VERBOSE:-0}
+      - NIM_TRITON_LOG_VERBOSE=${NIM_TRITON_LOG_VERBOSE:-1}
       - MILVUS_CUDA_VISIBLE_DEVICES=${MILVUS_CUDA_VISIBLE_DEVICES:-0}
       - COSMOS_EMBED_NIM_URI=${COSMOS_EMBED_NIM_URI:-http://cosmos-embed:8000}
       - NIM_LOG_LEVEL=${NIM_LOG_LEVEL:-DEFAULT}
@@ -59,6 +60,7 @@ services:
       - ETCD_SNAPSHOT_COUNT=50000
       - MINIO_ACCESS_KEY_ID=${MINIO_ACCESS_KEY_ID:-test}
       - MINIO_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-test}
+      - PYTHONDONTWRITEBYTECODE=1
     volumes:
       - etcd_data:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
@@ -93,6 +95,7 @@ services:
       - MINIO_SECRET_ACCESS_KEY=${MINIO_SECRET_ACCESS_KEY:-test}
       # GPU Memory Management for CAGRA
       - CUDA_VISIBLE_DEVICES=${MILVUS_CUDA_VISIBLE_DEVICES:-0}
+      - PYTHONDONTWRITEBYTECODE=1
     volumes:
       - milvus_data:/var/lib/milvus
       - ./milvus_localstack.yaml:/milvus/configs/milvus.yaml
@@ -140,8 +143,10 @@ services:
       - ${HOME}/.cache/nim:/opt/nim/.cache
     environment:
       - NGC_API_KEY=${NVIDIA_API_KEY:?err}
-      - NIM_TRITON_LOG_VERBOSE=${NIM_TRITON_LOG_VERBOSE:-0}
+      - NIM_TRITON_LOG_VERBOSE=1
       - NIM_LOG_LEVEL=${NIM_LOG_LEVEL:-DEFAULT}
+      - PYTHONDONTWRITEBYTECODE=1
+      - HF_ENDPOINT=https://hf-mirror.com
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/v1/health/ready || exit 1"]
       interval: 30s
@@ -163,6 +168,7 @@ services:
       dockerfile: docker/services/visual-search.Dockerfile
     container_name: visual-search
     environment:
+      PYTHONDONTWRITEBYTECODE: 1
       GUNICORN_PORT: ${GUNICORN_PORT:-8888}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-600}
@@ -198,21 +204,21 @@ services:
   # User Interface (Built locally)
   # ================================================
 
-  visual-search-react-ui:
-    image: ${COSMOS_VDS_WEB_UI_IMAGE:-nvcr.io/nvidia/blueprint/cosmos-cds-ui:1.0.0}
-    container_name: cosmos-vds-web-ui
-    environment:
-      CDS_API_URL: ${CDS_API_URL:-http://localhost:8888/v1}
-      CDS_CDN_URL: ${CDS_CDN_URL:-http://localhost:4566/cosmos-test-bucket}
-      CDS_UI_URL: ${CDS_UI_URL:-http://localhost:8080/}
-      PORT: 8080
-    ports:
-      - "8080:8080"
-    depends_on:
-      visual-search:
-        condition: service_started
-    networks:
-      - cvds
+  # visual-search-react-ui:
+  #   image: ${COSMOS_VDS_WEB_UI_IMAGE:-nvcr.io/nvidia/blueprint/cosmos-cds-ui:1.0.0}
+  #   container_name: cosmos-vds-web-ui
+  #   environment:
+  #     CDS_API_URL: ${CDS_API_URL:-http://localhost:8888/v1}
+  #     CDS_CDN_URL: ${CDS_CDN_URL:-http://localhost:4566/cosmos-test-bucket}
+  #     CDS_UI_URL: ${CDS_UI_URL:-http://localhost:8080/}
+  #     PORT: 8080
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     visual-search:
+  #       condition: service_started
+  #   networks:
+  #     - cvds
 
   localstack:
     image: localstack/localstack:4.7
@@ -232,6 +238,7 @@ services:
       - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:8080
       - EXTRA_CORS_ALLOWED_HEADERS=content-type,x-amz-date,authorization,x-api-key,x-amz-security-token,x-amz-user-agent
       - BUCKET_NAME=cosmos-test-bucket
+      - PYTHONDONTWRITEBYTECODE=1
     healthcheck:
       test: ["CMD-SHELL", "awslocal s3 ls >/dev/null 2>&1 || aws --endpoint-url=http://localhost:4566 s3 ls >/dev/null 2>&1"]
       interval: 10s

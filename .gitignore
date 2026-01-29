@@ -115,6 +115,9 @@ utils/packaging/files_to_skip.txt
 benchmark_data/
 benchmark_results/
 
+# Local data directories
+cds-data/
+
 my-env.sh
 cvs-rendered.yaml
 *.crt

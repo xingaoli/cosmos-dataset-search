@@ -109,15 +109,15 @@ build-docker:
 
 build-python-base:
 	@echo "$(BLUE)Building Python base image...$(NC)"
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build -f docker/base/python-base.Dockerfile -t python-base:latest .
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg HTTP_PROXY=http://172.17.0.1:7897 --build-arg HTTPS_PROXY=http://172.17.0.1:7897 -f docker/base/python-base.Dockerfile -t python-base:latest .
 
 build-visual-search: build-python-base
 	@echo "$(BLUE)Building visual search service image...$(NC)"
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg IMAGE_TAG=$(IMAGE_TAG) -f docker/services/visual-search.Dockerfile -t visual-search:$(IMAGE_TAG) .
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg HTTP_PROXY=http://172.17.0.1:7897 --build-arg HTTPS_PROXY=http://172.17.0.1:7897 --build-arg IMAGE_TAG=$(IMAGE_TAG) -f docker/services/visual-search.Dockerfile -t visual-search:$(IMAGE_TAG) .
 
 build-host-setup:
 	@echo "$(BLUE)Building host setup container...$(NC)"
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build -f infra/blueprint/host-setup-docker/Dockerfile -t host-setup:$(IMAGE_TAG) .
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg HTTP_PROXY=http://172.17.0.1:7897 --build-arg HTTPS_PROXY=http://172.17.0.1:7897 -f infra/blueprint/host-setup-docker/Dockerfile -t host-setup:$(IMAGE_TAG) .
 
 
 # ==============================================================================
@@ -228,12 +228,12 @@ test-integration-run: ## Run integration test scripts
 	@echo "$(GREEN)Run 'cds config set' for 'default' profile and set the API endpoint to http://<ip_address>:8888 to configure the CLI$(NC)"
 	@echo "$(GREEN)Run 'cds pipelines list' to verify the services are up to run the tests$(NC)"
 	@echo "$(YELLOW)----------------------------------------$(NC)"
-	. .venv/bin/activate && python src/visual_search/scripts/run_integration_test_minimal.py
+	. .venv/bin/activate && PYTHONDONTWRITEBYTECODE=1 python src/visual_search/scripts/run_integration_test_minimal.py
 	@echo ""
 	@echo "$(YELLOW)----------------------------------------$(NC)"
 	@echo "$(BLUE)Running Cosmos video end-to-end test...$(NC)"
 	@echo "$(YELLOW)----------------------------------------$(NC)"
-	. .venv/bin/activate && python src/visual_search/scripts/run_cosmos_video_integration_test.py
+	. .venv/bin/activate && PYTHONDONTWRITEBYTECODE=1 python src/visual_search/scripts/run_cosmos_video_integration_test.py
 	@echo "$(YELLOW)----------------------------------------$(NC)"
 
 test-integration-down: ## Stop integration test environment and clean all state
