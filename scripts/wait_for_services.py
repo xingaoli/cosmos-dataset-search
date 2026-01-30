@@ -46,11 +46,11 @@ SERVICES = {
         "health_endpoint": "/health",
         "timeout": 120,
     },
-    "react-ui": {
-        "url": "http://localhost:8080",
-        "health_endpoint": "/",
-        "timeout": 60,
-    },
+    # "react-ui": {
+    #     "url": "http://localhost:8080",
+    #     "health_endpoint": "/",
+    #     "timeout": 60,
+    # },
 }
 
 def check_http_service(

@@ -236,6 +236,23 @@ test-integration-run: ## Run integration test scripts
 	. .venv/bin/activate && PYTHONDONTWRITEBYTECODE=1 python src/visual_search/scripts/run_cosmos_video_integration_test.py
 	@echo "$(YELLOW)----------------------------------------$(NC)"
 
+test-integration-stop: ## Stop containers without removing them (preserves S3 data and volumes)
+	@echo "$(BLUE)Stopping containers (preserving data and volumes)...$(NC)"
+	cd deploy/standalone && docker compose -f docker-compose.build.yml stop || true
+	@echo "$(GREEN)Containers stopped. Use 'make test-integration-start' to resume.$(NC)"
+
+test-integration-start: ## Start existing containers without rebuilding
+	@echo "$(BLUE)Starting existing containers...$(NC)"
+	cd deploy/standalone && docker compose -f docker-compose.build.yml start || true
+	@echo ""
+	@echo "$(YELLOW)----------------------------------------$(NC)"
+	@echo "$(BLUE)Waiting for services to be ready...$(NC)"
+	python scripts/wait_for_services.py
+	@echo ""
+	@echo "$(GREEN)✓ Services started!$(NC)"
+	@echo "$(BLUE)Check the UI at http://localhost:8080/cosmos-dataset-search$(NC)"
+	@echo ""
+
 test-integration-down: ## Stop integration test environment and clean all state
 	@echo "$(BLUE)Stopping integration test environment and cleaning all state...$(NC)"
 	cd deploy/standalone && docker compose -f docker-compose.build.yml down -v --remove-orphans || true
