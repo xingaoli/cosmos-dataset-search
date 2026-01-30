@@ -123,6 +123,7 @@ integration = [
 benchmark = [
     "datasets>=2.19.0",
     "av>=10.0",
+    "matplotlib>=3.7.0",
 ]
 
 [project.scripts]

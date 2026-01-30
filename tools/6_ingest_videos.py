@@ -1,95 +1,8 @@
-import os
-os.chdir('/home/xingao/code/cosmos-dataset-search')
-
-# # step2 list available pipelines
-# import requests
-
-# response = requests.get("http://localhost:8888/v1/pipelines")
-# pipelines = response.json()
-
-# for pipeline in pipelines.get("pipelines", []):
-#     print(f"Pipeline: {pipeline['id']}")
-#     print(f"  Enabled: {pipeline['enabled']}")
-#     print(f"  Description: {pipeline['config']['index']['description']}")
-
-
-# # step3 create a collection
-# import requests
-
-# payload = {
-#     "pipeline": "cosmos_video_search_milvus",
-#     "name": "My First Video Collection",
-#     "tags": {
-#         "storage-template": "s3://cosmos-test-bucket/videos/{{filename}}"
-#     }
-# }
-
-# response = requests.post(
-#     "http://localhost:8888/v1/collections",
-#     json=payload
-# )
-
-# collection = response.json()
-# collection_id = collection['collection']['id']
-# print(f"Created collection: {collection_id}") # a86af2c3_02ea_42cf_9af5_efabbe342144
-
-
-# # step4 list collections
-# import requests
-
-# response = requests.get("http://localhost:8888/v1/collections")
-# collections = response.json()
-
-# for collection in collections.get("collections", []):
-#     print(f"Collection ID: {collection['id']}")
-#     print(f"  Name: {collection['name']}")
-#     print(f"  Pipeline: {collection['pipeline']}")
-#     print(f"  Created: {collection['created_at']}")
-
-# collection_id = collections["collections"][0]["id"]
-# print(f"\nUsing collection ID: {collection_id}")
-
-# # step5 Upload Videos to LocalStack
-# import boto3
-# from pathlib import Path
-
-# s3_client = boto3.client(
-#     's3',
-#     endpoint_url='http://localhost:4566',
-#     aws_access_key_id='test',
-#     aws_secret_access_key='test',
-#     region_name='us-east-1'
-# )
-
-# bucket = 'cosmos-test-bucket'
-# prefix = 'videos'
-
-# video_files = list(Path('./cds-data/physical_ai_av_videos').glob('*.mp4'))
-
-# print(f"Uploading {len(video_files)} videos to s3://{bucket}/{prefix}/")
-
-# for video_file in video_files:
-#     key = f"{prefix}/{video_file.name}"
-#     print(f"  Uploading {video_file.name}...")
-#     s3_client.upload_file(str(video_file), bucket, key)
-
-# print("\nUpload complete! Verifying...")
-
-# response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-# if 'Contents' in response:
-#     print(f"\nFiles in s3://{bucket}/{prefix}/:")
-#     for obj in response['Contents']:
-#         size_mb = obj['Size'] / (1024 * 1024)
-#         print(f"  {obj['Key']} ({size_mb:.2f} MB)")
-# else:
-#     print("No files found in bucket")
-
-
 # step 6 Ingest Videos
 import boto3
 import requests
 
-collection_id = "a86af2c3_02ea_42cf_9af5_efabbe342144"  # Replace with your actual collection ID
+collection_id = "a6499a603_28e6_4dc5_b3cd_667fdd620805"  # PHAA 1000 Collection
 
 s3_client = boto3.client(
     's3',
@@ -100,7 +13,7 @@ s3_client = boto3.client(
 )
 
 bucket = 'cosmos-test-bucket'
-prefix = 'videos'
+prefix = 'phaa1000/h264'  # Use transcoded H.264 videos
 
 print(f"Listing all .mp4 files in s3://{bucket}/{prefix}/")
 
@@ -233,11 +146,8 @@ for i in range(0, len(documents), BATCH_SIZE):
                 print("   docker logs visual-search --tail 50")
                 print("   docker logs cosmos-embed --tail 50")
 
-            # 继续处理还是中止？
-            user_input = input("\nContinue with next batch? (y/n): ").strip().lower()
-            if user_input != 'y':
-                print("Stopping ingestion process.")
-                break
+            # Continue with next batch automatically
+            print("\nContinuing with next batch...")
 
     except requests.exceptions.Timeout:
         elapsed_time = time.time() - start_time
@@ -271,52 +181,3 @@ else:
     print(f"💡 Check the container logs for details:")
     print(f"   docker logs visual-search --tail 100")
     print(f"   docker logs cosmos-embed --tail 100")
-
-# step 7： search video
-import requests
-import json
-
-collection_id = "a86af2c3_02ea_42cf_9af5_efabbe342144"  # Replace with your actual collection ID
-
-search_payload = {
-    "query": [{"text": "turn left"}],
-    "top_k": 3
-}
-
-print(f"Searching collection: {collection_id}")
-print(f"Query: {search_payload['query'][0]['text']}\n")
-
-response = requests.post(
-    f"http://localhost:8888/v1/collections/{collection_id}/search",
-    json=search_payload
-)
-
-print(f"Response status: {response.status_code}")
-
-if response.status_code != 200:
-    print(f"Error: {response.text}")
-else:
-    results = response.json()
-    
-    retrievals = results.get('retrievals', [])
-    print(f"Found {len(retrievals)} results:\n")
-    
-    for i, result in enumerate(retrievals, 1):
-        print(f"Result {i}:")
-        print(f"  Score: {result['score']:.4f}")
-        if 'metadata' in result:
-            if 'filename' in result['metadata']:
-                print(f"  Filename: {result['metadata']['filename']}")
-            if 'source_url' in result['metadata']:
-                print(f"  Video: {result['metadata']['source_url'][:70]}...")
-
-# # step8: delete collection
-# import requests
-
-# collection_id = "<your-collection-id>"
-
-# response = requests.delete(
-#     f"http://localhost:8888/v1/collections/{collection_id}"
-# )
-
-# print(f"Collection deleted: {response.status_code}")
