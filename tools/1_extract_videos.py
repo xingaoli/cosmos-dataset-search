@@ -7,12 +7,17 @@ import zipfile
 import os
 import glob
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载环境变量
+env_path = Path(__file__).parent.parent / 'deploy' / 'standalone' / '.env'
+load_dotenv(env_path)
 
 # 源zip文件目录（支持多个压缩包）
-ZIP_DIR = "/home/xingao/data/PhysicalAI-Autonomous-Vehicles-base-wo-lidar-radar/camera/camera_front_wide_120fov/"
+ZIP_DIR = os.getenv('TOOLS_ZIP_DIR', '/home/xingao/data/PhysicalAI-Autonomous-Vehicles-base-wo-lidar-radar/camera/camera_front_wide_120fov/')
 
 # 目标目录
-OUTPUT_DIR = "./cds-data/phaa1000/h265"
+OUTPUT_DIR = os.getenv('TOOLS_EXTRACT_OUTPUT_DIR', './cds-data/phaa1000/h265')
 
 def extract_videos():
     """从zip文件中提取所有视频到目标目录"""

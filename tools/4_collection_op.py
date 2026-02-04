@@ -1,5 +1,15 @@
 import os
-os.chdir('/home/xingao/code/cosmos-dataset-search')
+from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载环境变量
+env_path = Path(__file__).parent.parent / 'deploy' / 'standalone' / '.env'
+load_dotenv(env_path)
+
+# 设置项目根目录
+PROJECT_ROOT = os.getenv('PROJECT_ROOT',
+                         str(Path(__file__).parent.parent))
+os.chdir(PROJECT_ROOT)
 
 # step2 list available pipelines
 import requests
