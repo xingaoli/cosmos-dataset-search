@@ -123,3 +123,5 @@ cvs-rendered.yaml
 *.crt
 *.key
 *.pem
+
+.cursor
