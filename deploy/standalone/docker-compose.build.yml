@@ -163,9 +163,7 @@ services:
   # ================================================
 
   visual-search:
-    build:
-      context: ../..
-      dockerfile: docker/services/visual-search.Dockerfile
+    image: visual-search:${IMAGE_TAG:-latest}
     container_name: visual-search
     environment:
       PYTHONDONTWRITEBYTECODE: 1
