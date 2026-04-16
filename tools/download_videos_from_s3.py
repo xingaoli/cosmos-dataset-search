@@ -1,42 +1,27 @@
 #!/usr/bin/env python3
-"""Download videos from LocalStack S3 to local cds-data directory."""
+"""Download videos from LocalStack S3 to local directory."""
 
-import os
-import boto3
 from pathlib import Path
+from _config import S3_BUCKET, S3_PREFIX, DATA_DIR, get_s3_client
 
-# Initialize S3 client
-s3_client = boto3.client(
-    's3',
-    endpoint_url='http://localhost:4566',
-    aws_access_key_id='test',
-    aws_secret_access_key='test',
-    region_name='us-east-1'
-)
+s3_client = get_s3_client(use_docker_endpoint=False)
+local_dir = Path(DATA_DIR) / 'downloads'
 
-bucket = 'cosmos-test-bucket'
-prefix = 'videos/'
-local_dir = Path('cds-data/videos')
-
-# Create local directory
 local_dir.mkdir(parents=True, exist_ok=True)
 
-# List all videos
-print(f"Listing videos from s3://{bucket}/{prefix}")
+print(f"Listing videos from s3://{S3_BUCKET}/{S3_PREFIX}")
 paginator = s3_client.get_paginator('list_objects_v2')
 video_count = 0
 
-for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
     if 'Contents' in page:
         for obj in page['Contents']:
             key = obj['Key']
             filename = key.split('/')[-1]
-
-            # Download video
             local_path = local_dir / filename
-            print(f"[{video_count + 1:3d}/100] Downloading {filename}...")
 
-            s3_client.download_file(bucket, key, str(local_path))
+            print(f"[{video_count + 1:3d}] Downloading {filename}...")
+            s3_client.download_file(S3_BUCKET, key, str(local_path))
             video_count += 1
 
-print(f"\n✓ Downloaded {video_count} videos to {local_dir}/")
+print(f"\nDownloaded {video_count} videos to {local_dir}/")

@@ -5,33 +5,29 @@ import subprocess
 import os
 from pathlib import Path
 import time
+from _config import DATA_DIR
 
-# Configuration
-SOURCE_DIR = Path('cds-data/phaa1000')
+SOURCE_DIR = Path(DATA_DIR) / 'phaiav_videos'
 OUTPUT_DIR = SOURCE_DIR / 'h264'
 INPUT_DIR = SOURCE_DIR / 'h265'
 
 VIDEO_FILES = sorted(INPUT_DIR.glob('*.mp4'))
 
-# Create output directory
-OUTPUT_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 print(f"{'='*60}")
-print(f"Batch Video Transcoding: HEVC → H.264")
+print(f"Batch Video Transcoding: HEVC -> H.264")
 print(f"{'='*60}")
-print(f"Source: {SOURCE_DIR}")
+print(f"Source: {INPUT_DIR}")
 print(f"Output: {OUTPUT_DIR}")
 print(f"Total videos: {len(VIDEO_FILES)}")
 print(f"{'='*60}\n")
 
-# Check if already transcoded
 already_done = len(list(OUTPUT_DIR.glob('*.mp4')))
 if already_done > 0:
     print(f"Found {already_done} already transcoded videos. Will skip them.")
 
-# Transcoding function
 def transcode_video(input_file: Path, output_file: Path) -> bool:
-    """Transcode video to H.264 using ffmpeg."""
     try:
         subprocess.run([
             'ffmpeg', '-i', str(input_file),
@@ -42,13 +38,12 @@ def transcode_video(input_file: Path, output_file: Path) -> bool:
         ], capture_output=True, check=True, timeout=300)
         return True
     except subprocess.TimeoutExpired:
-        print(f"  ✗ Timeout after 300s")
+        print(f"  x Timeout after 300s")
         return False
     except subprocess.CalledProcessError as e:
-        print(f"  ✗ Failed: {e}")
+        print(f"  x Failed: {e}")
         return False
 
-# Process each video
 start_time = time.time()
 success_count = 0
 failed_count = 0
@@ -57,9 +52,8 @@ skipped_count = 0
 for i, video_file in enumerate(VIDEO_FILES, 1):
     output_file = OUTPUT_DIR / video_file.name
 
-    # Skip if already exists
     if output_file.exists():
-        print(f"[{i:3d}/{len(VIDEO_FILES)}] ✓ {video_file.name} (already exists)")
+        print(f"[{i:3d}/{len(VIDEO_FILES)}] + {video_file.name} (already exists)")
         skipped_count += 1
         continue
 
@@ -73,11 +67,10 @@ for i, video_file in enumerate(VIDEO_FILES, 1):
         success_count += 1
         input_size = video_file.stat().st_size / 1024 / 1024
         output_size = output_file.stat().st_size / 1024 / 1024
-        print(f"  ✓ Done in {elapsed:.1f}s ({input_size:.2f}MB → {output_size:.2f}MB)")
+        print(f"  + Done in {elapsed:.1f}s ({input_size:.2f}MB -> {output_size:.2f}MB)")
     else:
         failed_count += 1
 
-# Summary
 total_elapsed = time.time() - start_time
 print(f"\n{'='*60}")
 print(f"Transcoding Summary")
@@ -92,8 +85,7 @@ if success_count > 0:
 print(f"{'='*60}")
 
 if failed_count > 0:
-    print(f"\n⚠️  {failed_count} videos failed to transcode")
-    print(f"Check the videos manually - they may be corrupted or unsupported format")
+    print(f"\n{failed_count} videos failed to transcode")
 
-print(f"\n✅ Transcoded videos saved to: {OUTPUT_DIR}")
-print(f"Next step: Upload to S3 using upload_h264_to_s3.py")
+print(f"\nTranscoded videos saved to: {OUTPUT_DIR}")
+print(f"Next step: Upload to S3 using python tools/3_upload_h264_to_s3.py")

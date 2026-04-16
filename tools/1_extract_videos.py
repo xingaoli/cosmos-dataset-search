@@ -1,54 +1,38 @@
 #!/usr/bin/env python3
-"""
-提取视频文件从zip压缩包到指定目录
-"""
+"""Extract videos from zip files."""
 
 import zipfile
 import os
 import glob
-from pathlib import Path
-from dotenv import load_dotenv
+from _config import ZIP_DIR, EXTRACT_OUTPUT_DIR
 
-# 加载环境变量
-env_path = Path(__file__).parent.parent / 'deploy' / 'standalone' / '.env'
-load_dotenv(env_path)
-
-# 源zip文件目录（支持多个压缩包）
-ZIP_DIR = os.getenv('TOOLS_ZIP_DIR', '/home/xingao/data/PhysicalAI-Autonomous-Vehicles-base-wo-lidar-radar/camera/camera_front_wide_120fov/')
-
-# 目标目录
-OUTPUT_DIR = os.getenv('TOOLS_EXTRACT_OUTPUT_DIR', './cds-data/phaa1000/h265')
+if not ZIP_DIR:
+    print("ERROR: Set TOOLS_ZIP_DIR in deploy/standalone/.env")
+    exit(1)
 
 def extract_videos():
-    """从zip文件中提取所有视频到目标目录"""
-    # 创建目标目录
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(EXTRACT_OUTPUT_DIR, exist_ok=True)
 
-    # 获取所有zip文件
     zip_files = sorted(glob.glob(os.path.join(ZIP_DIR, "*.zip")))
-    print(f"找到 {len(zip_files)} 个压缩包")
+    print(f"Found {len(zip_files)} zip files")
 
     total_videos = 0
     for zip_path in zip_files:
         zip_name = os.path.basename(zip_path)
-        print(f"\n正在解压: {zip_name}")
-        print(f"目标目录: {OUTPUT_DIR}")
+        print(f"\nExtracting: {zip_name}")
+        print(f"  Target: {EXTRACT_OUTPUT_DIR}")
 
-        # 打开zip文件
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            # 列出zip中的所有文件
             file_list = zip_ref.namelist()
             video_count = sum(1 for f in file_list if f.endswith('.mp4'))
-            print(f"  压缩包中共有 {len(file_list)} 个文件，其中 {video_count} 个视频")
+            print(f"  {len(file_list)} files, {video_count} videos")
 
-            # 解压所有文件
             for file in file_list:
-                # 只解压视频文件（.mp4, .mkv等）
                 if any(file.endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.h265', '.hevc']):
-                    zip_ref.extract(file, OUTPUT_DIR)
+                    zip_ref.extract(file, EXTRACT_OUTPUT_DIR)
                     total_videos += 1
 
-    print(f"\n✓ 提取完成！共提取 {total_videos} 个视频，保存到: {OUTPUT_DIR}")
+    print(f"\nDone! {total_videos} videos extracted to: {EXTRACT_OUTPUT_DIR}")
 
 if __name__ == "__main__":
     extract_videos()

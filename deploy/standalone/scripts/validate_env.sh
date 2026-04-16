@@ -183,7 +183,13 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 
 set -a
-source "${ENV_FILE}"
+while IFS='=' read -r key value; do
+  # Skip comments and empty lines
+  [[ "$key" =~ ^[[:space:]]*# ]] && continue
+  [[ -z "$key" ]] && continue
+  # Export valid KEY=VALUE pairs
+  export "${key}=${value}"
+done < <(grep -E '^[^#]' "${ENV_FILE}" | grep -E '^[A-Za-z_]=')
 set +a
 
 # Required values

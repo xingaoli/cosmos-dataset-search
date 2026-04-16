@@ -1,50 +1,86 @@
-# step 7： search video
+#!/usr/bin/env python3
+"""Search for similar videos by text or video clip.
+
+Usage:
+  python tools/7_search_videos.py --text "a car driving on the highway"
+  python tools/7_search_videos.py --video 002dec8e-3d95-4cc2-abbe-99b3a2e78618.camera_front_wide_120fov.mp4
+  python tools/7_search_videos.py --text "rainy day" --top-k 10
+"""
+
+import argparse
 import requests
-import json
-import subprocess
+from _config import COLLECTION_ID, API_BASE
 
-collection_id = "a4babf42c_c97c_4a5c_84f8_2ed44e2401db"  # URL Format Collection
 
-# Get presigned URL for the video
-# IMPORTANT: Use localstack hostname instead of localhost so cosmos-embed container can access it
-s3_path = "s3://cosmos-test-bucket/phaa_videos100/h264/c3ca785e-3876-4a0a-a8bd-890f2027d795.camera_front_wide_120fov.mp4"
-result = subprocess.run(
-    ["aws", "s3", "presign", s3_path, "--expires-in", "3600"],
-    capture_output=True,
-    text=True,
-    env={**subprocess.os.environ, "AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_ENDPOINT_URL": "http://localstack:4566"}
-)
-presigned_url = result.stdout.strip()
-print(presigned_url)
+def search_text(text, top_k):
+    payload = {
+        "query": [{"text": text}],
+        "top_k": top_k,
+    }
+    print(f"Query text: \"{text}\"")
+    return _do_search(payload, top_k)
 
-search_payload = {
-    "query": [{"video": presigned_url}],
-    "top_k": 5
-}
 
-print(f"Searching collection: {collection_id}")
-print(f"Query video: {presigned_url}\n")
+def search_video(filename, top_k):
+    from _config import S3_PREFIX, TRANSCODE_PROXY_DOCKER
+    url = f"{TRANSCODE_PROXY_DOCKER}/transcode?key={S3_PREFIX}/{filename}"
+    print(f"Query video: {filename}")
 
-response = requests.post(
-    f"http://localhost:8888/v1/collections/{collection_id}/search",
-    json=search_payload
-)
+    payload = {
+        "query": [{"video": url}],
+        "top_k": top_k,
+    }
+    return _do_search(payload, top_k)
 
-print(f"Response status: {response.status_code}")
 
-if response.status_code != 200:
-    print(f"Error: {response.text}")
-else:
+def _do_search(payload, top_k):
+    print(f"Collection: {COLLECTION_ID}")
+    print(f"Top K: {top_k}\n")
+
+    response = requests.post(
+        f"{API_BASE}/collections/{COLLECTION_ID}/search",
+        json=payload,
+        timeout=120,
+    )
+
+    if response.status_code != 200:
+        print(f"Error {response.status_code}: {response.text}")
+        return
+
     results = response.json()
-    
     retrievals = results.get('retrievals', [])
     print(f"Found {len(retrievals)} results:\n")
-    
-    for i, result in enumerate(retrievals, 1):
-        print(f"Result {i}:")
-        print(f"  Score: {result['score']:.4f}")
-        if 'metadata' in result:
-            if 'filename' in result['metadata']:
-                print(f"  Filename: {result['metadata']['filename']}")
-            if 'source_url' in result['metadata']:
-                print(f"  Video: {result['metadata']['source_url']}...")
+
+    if not retrievals:
+        print("No results found.")
+        return
+
+    for i, r in enumerate(retrievals, 1):
+        filename = r.get('metadata', {}).get('filename', '')
+        clip_id = filename.split('.')[0] if filename else r.get('id', '')[:16]
+        print(f"Result {i}: {filename}")
+        print(f"  Score: {r.get('score', 'N/A')}")
+        print(f"  Clip ID: {clip_id}")
+        print()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Search videos by text or video clip")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--text", "-t", help="Search by text description")
+    group.add_argument("--video", "-v", help="Search by video filename (must exist in S3)")
+    parser.add_argument("--top-k", "-k", type=int, default=5, help="Number of results (default: 5)")
+    args = parser.parse_args()
+
+    if not COLLECTION_ID:
+        print("ERROR: Set TOOLS_COLLECTION_ID in deploy/standalone/.env")
+        exit(1)
+
+    if args.text:
+        search_text(args.text, args.top_k)
+    elif args.video:
+        search_video(args.video, args.top_k)
+
+
+if __name__ == "__main__":
+    main()

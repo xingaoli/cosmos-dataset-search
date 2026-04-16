@@ -109,15 +109,15 @@ build-docker:
 
 build-python-base:
 	@echo "$(BLUE)Building Python base image...$(NC)"
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg HTTP_PROXY=http://172.17.0.1:7897 --build-arg HTTPS_PROXY=http://172.17.0.1:7897 -f docker/base/python-base.Dockerfile -t python-base:latest .
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build -f docker/base/python-base.Dockerfile -t python-base:latest .
 
 build-visual-search: build-python-base
 	@echo "$(BLUE)Building visual search service image...$(NC)"
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg HTTP_PROXY=http://172.17.0.1:7897 --build-arg HTTPS_PROXY=http://172.17.0.1:7897 --build-arg IMAGE_TAG=$(IMAGE_TAG) -f docker/services/visual-search.Dockerfile -t visual-search:$(IMAGE_TAG) .
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg IMAGE_TAG=$(IMAGE_TAG) -f docker/services/visual-search.Dockerfile -t visual-search:$(IMAGE_TAG) .
 
 build-host-setup:
 	@echo "$(BLUE)Building host setup container...$(NC)"
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --build-arg HTTP_PROXY=http://172.17.0.1:7897 --build-arg HTTPS_PROXY=http://172.17.0.1:7897 -f infra/blueprint/host-setup-docker/Dockerfile -t host-setup:$(IMAGE_TAG) .
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build -f infra/blueprint/host-setup-docker/Dockerfile -t host-setup:$(IMAGE_TAG) .
 
 
 # ==============================================================================

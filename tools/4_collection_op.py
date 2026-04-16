@@ -1,20 +1,9 @@
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-
-# 加载环境变量
-env_path = Path(__file__).parent.parent / 'deploy' / 'standalone' / '.env'
-load_dotenv(env_path)
-
-# 设置项目根目录
-PROJECT_ROOT = os.getenv('PROJECT_ROOT',
-                         str(Path(__file__).parent.parent))
-os.chdir(PROJECT_ROOT)
-
-# step2 list available pipelines
+"""List pipelines and collections."""
 import requests
+from _config import API_BASE
 
-response = requests.get("http://localhost:8888/v1/pipelines")
+# List pipelines
+response = requests.get(f"{API_BASE}/pipelines")
 pipelines = response.json()
 
 for pipeline in pipelines.get("pipelines", []):
@@ -22,17 +11,18 @@ for pipeline in pipelines.get("pipelines", []):
     print(f"  Enabled: {pipeline['enabled']}")
     print(f"  Description: {pipeline['config']['index']['description']}")
 
-# step4 list collections
-import requests
-
-response = requests.get("http://localhost:8888/v1/collections")
+# List collections
+response = requests.get(f"{API_BASE}/collections")
 collections = response.json()
 
+print()
 for collection in collections.get("collections", []):
     print(f"Collection ID: {collection['id']}")
     print(f"  Name: {collection['name']}")
     print(f"  Pipeline: {collection['pipeline']}")
     print(f"  Created: {collection['created_at']}")
 
-collection_id = collections["collections"][0]["id"]
-print(f"\nUsing collection ID: {collection_id}")
+if collections.get("collections"):
+    collection_id = collections["collections"][0]["id"]
+    print(f"\nUsing collection ID: {collection_id}")
+    print(f"  -> Set TOOLS_COLLECTION_ID={collection_id} in deploy/standalone/.env")

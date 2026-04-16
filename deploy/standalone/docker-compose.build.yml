@@ -52,7 +52,7 @@ services:
   # ================================================
   etcd:
     container_name: milvus-etcd
-    image: quay.io/coreos/etcd:v3.5.5
+    image: ${ETCD_IMAGE:-quay.io/coreos/etcd:v3.5.5}
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000
@@ -77,7 +77,7 @@ services:
 
   milvus:
     container_name: milvus
-    image: milvusdb/milvus:v2.4.4-gpu
+    image: ${MILVUS_IMAGE:-milvusdb/milvus:v2.4.4-gpu}
     command: ["milvus", "run", "standalone"]
     runtime: nvidia
     deploy:
@@ -134,13 +134,17 @@ services:
               capabilities: [gpu]
     shm_size: 16g
     tmpfs:
-      - /tmp/ram:size=2g
+      - /tmp/ram:size=2g,uid=1000,gid=1000
     ports:
       - "9000:8000"
       - "9001:8001"
       - "9002:8002"
     volumes:
       - ${HOME}/.cache/nim:/opt/nim/.cache
+      # cosmos_model_wrapper.py hardcodes HF cache to /tmp/, bind mount to persist
+      - ${HOME}/.cache/nim/hf_home:/tmp/hf_home
+      - ${HOME}/.cache/nim/transformers_cache:/tmp/transformers_cache
+      - ${HOME}/.cache/nim/hf_hub_cache:/tmp/hf_hub_cache
     environment:
       - NGC_API_KEY=${NVIDIA_API_KEY:?err}
       - NIM_TRITON_LOG_VERBOSE=1
@@ -159,11 +163,29 @@ services:
         condition: service_completed_successfully
 
   # ================================================
+  # On-the-fly Transcoding Proxy
+  # ================================================
+
+  transcode-proxy:
+    build:
+      context: ../../docker/transcode
+      dockerfile: Dockerfile
+    image: ${TRANSCODE_PROXY_IMAGE:-transcode-proxy:latest}
+    container_name: transcode-proxy
+    ports:
+      - "9999:9999"
+    networks:
+      - cvds
+    depends_on:
+      localstack:
+        condition: service_healthy
+
+  # ================================================
   # Core Services (Built locally)
   # ================================================
 
   visual-search:
-    image: visual-search:${IMAGE_TAG:-latest}
+    image: ${VISUAL_SEARCH_IMAGE:-visual-search}:${IMAGE_TAG:-latest}
     container_name: visual-search
     environment:
       PYTHONDONTWRITEBYTECODE: 1
@@ -219,7 +241,7 @@ services:
   #     - cvds
 
   localstack:
-    image: localstack/localstack:4.7
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:4.7}
     container_name: localstack
     ports:
       - "4566:4566"
@@ -235,7 +257,7 @@ services:
       - AWS_ENDPOINT_URL=http://localstack:4566
       - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:8080
       - EXTRA_CORS_ALLOWED_HEADERS=content-type,x-amz-date,authorization,x-api-key,x-amz-security-token,x-amz-user-agent
-      - BUCKET_NAME=cosmos-test-bucket
+      - BUCKET_NAME=${S3_BUCKET:-cosmos-test-bucket}
       - PYTHONDONTWRITEBYTECODE=1
     healthcheck:
       test: ["CMD-SHELL", "awslocal s3 ls >/dev/null 2>&1 || aws --endpoint-url=http://localhost:4566 s3 ls >/dev/null 2>&1"]

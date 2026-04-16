@@ -1,10 +1,10 @@
-# step8: delete collection
+"""Delete a collection."""
 import requests
+from _config import COLLECTION_ID, API_BASE
 
-collection_id = "ceb00b99_39c0_409c_a7cf_8019cf8b9f29"
+if not COLLECTION_ID:
+    print("ERROR: Set TOOLS_COLLECTION_ID in deploy/standalone/.env")
+    exit(1)
 
-response = requests.delete(
-    f"http://localhost:8888/v1/collections/{collection_id}"
-)
-
-print(f"Collection deleted: {response.status_code}")
+response = requests.delete(f"{API_BASE}/collections/{COLLECTION_ID}")
+print(f"Collection {COLLECTION_ID} deleted: {response.status_code}")
