@@ -17,7 +17,7 @@ services:
   # ================================================
 
   validate-env:
-    image: bash
+    image: ${Bash_IMAGE:-bash:latest}
     pull_policy: missing
     working_dir: /workspace
     volumes:
@@ -176,6 +176,7 @@ services:
       - "9999:9999"
     networks:
       - cvds
+      - default
     depends_on:
       localstack:
         condition: service_healthy
@@ -219,6 +220,7 @@ services:
         condition: service_healthy
     networks:
       - cvds
+      - default
 
   # ================================================
   # User Interface (Built locally)
@@ -250,6 +252,7 @@ services:
       - ./localstack/init:/etc/localstack/init/ready.d:ro
     networks:
       - cvds
+      - default
     environment:
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
@@ -281,5 +284,10 @@ volumes:
 # ================================================
 
 networks:
+  # Internal network: containers can communicate with each other, but cannot access the internet
   cvds:
+    driver: bridge
+    internal: true
+  # External network: exposes ports to host for services that need host interaction
+  default:
     driver: bridge

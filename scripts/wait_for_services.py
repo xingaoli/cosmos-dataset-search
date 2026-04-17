@@ -14,10 +14,14 @@ Service waiting utility for integration tests.
 
 This script waits for services from docker-compose.build.yml to be ready before running tests.
 Configured to work with the actual service ports and endpoints from the compose file.
+
+For services on the internal network (cvds), health checks are performed via docker exec.
+For services exposed to the host, direct HTTP checks are used.
 """
 
 import logging
 import os
+import subprocess
 import sys
 import time
 from typing import Dict, List, Optional
@@ -29,29 +33,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Service configuration
+# internal=true: service is on cvds network, check via docker exec
+# internal=False: service is exposed to host, check via direct HTTP
 SERVICES = {
     "milvus": {
+        "container_name": "milvus",
         "url": "http://localhost:9091",
         "health_endpoint": "/healthz",
         "timeout": 120,
+        "internal": True,
     },
     "cosmos-embed": {
-        "url": "http://localhost:9000",
+        "container_name": "cosmos-embed",
+        "url": "http://localhost:8000",
         "health_endpoint": "/v1/health/ready",
         "timeout": 180,
+        "internal": True,
     },
-
     "visual-search": {
+        "container_name": "visual-search",
         "url": "http://localhost:8888",
         "health_endpoint": "/health",
         "timeout": 120,
+        "internal": False,
     },
-    # "react-ui": {
-    #     "url": "http://localhost:8080",
-    #     "health_endpoint": "/",
-    #     "timeout": 60,
-    # },
 }
+
 
 def check_http_service(
     service_name: str, url: str, endpoint: str, timeout: int = 60
@@ -78,32 +85,40 @@ def check_http_service(
     logger.error(f"✗ {service_name} failed to become ready within {timeout}s")
     return False
 
-def check_database_service(service_name: str, timeout: int = 60) -> bool:
-    """Check if database service is ready."""
-    import subprocess
 
+def check_internal_service(
+    service_name: str,
+    container_name: str,
+    url: str,
+    health_endpoint: str,
+    timeout: int = 60,
+) -> bool:
+    """Check if an internal (non-exposed) service is ready via docker exec."""
+    full_url = f"{url}{health_endpoint}"
     start_time = time.time()
-    logger.info(f"Checking {service_name} database")
+
+    logger.info(f"Checking {service_name} at {full_url} (via docker exec)")
 
     while time.time() - start_time < timeout:
         try:
             result = subprocess.run(
-                ["pg_isready", "-h", "localhost", "-p", "5432", "-U", "cvds_user"],
+                ["docker", "exec", container_name, "curl", "-sf", full_url],
                 capture_output=True,
-                text=True,
-                timeout=5,
+                timeout=10,
             )
             if result.returncode == 0:
-                logger.info(f" {service_name} is ready")
+                logger.info(f"{service_name} is ready")
                 return True
             else:
-                logger.debug(f"  {service_name} not ready: {result.stdout}")
+                logger.debug(
+                    f"  {service_name} returned {result.returncode}: {result.stderr.decode().strip()}"
+                )
         except subprocess.TimeoutExpired:
             logger.debug(f"  {service_name} check timed out")
         except Exception as e:
             logger.debug(f"  {service_name} check failed: {e}")
 
-        time.sleep(2)
+        time.sleep(3)
 
     logger.error(f"✗ {service_name} failed to become ready within {timeout}s")
     return False
@@ -125,8 +140,14 @@ def wait_for_services(services: Optional[List[str]] = None) -> bool:
 
         config = SERVICES[service_name]
 
-        if service_name == "postgres":
-            success = check_database_service(service_name, config["timeout"])
+        if config.get("internal"):
+            success = check_internal_service(
+                service_name,
+                config["container_name"],
+                config["url"],
+                config["health_endpoint"],
+                config["timeout"],
+            )
         else:
             success = check_http_service(
                 service_name,
