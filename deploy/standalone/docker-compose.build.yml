@@ -132,6 +132,16 @@ services:
             - driver: nvidia
               count: ${COSMOS_EMBED_GPUS:-1}
               capabilities: [gpu]
+    # Workaround: NVIDIA CUVID scans /dev/nvidia* sequentially and returns
+    # cudaErrorNoDevice if the sequence is broken on multi-GPU hosts.
+    # Adjust this list to match your total GPU count minus GPU 0:
+    #   1 GPU  → remove this devices section entirely
+    #   2 GPUs → only /dev/nvidia1
+    #   4 GPUs → all three as below
+    devices:
+      - /dev/nvidia1:/dev/nvidia1
+      - /dev/nvidia2:/dev/nvidia2
+      - /dev/nvidia3:/dev/nvidia3
     shm_size: 16g
     tmpfs:
       - /tmp/ram:size=2g,uid=1000,gid=1000
