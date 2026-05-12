@@ -260,6 +260,7 @@ services:
     volumes:
       - "${DATA_DIR}/:/data:ro"
       - ./localstack/init:/etc/localstack/init/ready.d:ro
+      - localstack_data:/tmp/localstack
     ulimits:
       nofile:
         soft: 65536
@@ -268,6 +269,7 @@ services:
       - cvds
       - default
     environment:
+      - DATA_DIR=/tmp/localstack/state
       - AWS_DEFAULT_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
@@ -292,6 +294,7 @@ services:
 volumes:
   milvus_data:
   etcd_data:
+  localstack_data:
 
 # ================================================
 # Networks
