@@ -116,7 +116,7 @@ benchmark_data/
 benchmark_results/
 
 # Local data directories
-cds-data/
+cds-data
 
 my-env.sh
 cvs-rendered.yaml

@@ -278,6 +278,7 @@ services:
       - EXTRA_CORS_ALLOWED_HEADERS=content-type,x-amz-date,authorization,x-api-key,x-amz-security-token,x-amz-user-agent
       - BUCKET_NAME=${S3_BUCKET:-cosmos-test-bucket}
       - PYTHONDONTWRITEBYTECODE=1
+      - CLEAR_TMP_FOLDER=false
     healthcheck:
       test: ["CMD-SHELL", "awslocal s3 ls >/dev/null 2>&1 || aws --endpoint-url=http://localhost:4566 s3 ls >/dev/null 2>&1"]
       interval: 10s
